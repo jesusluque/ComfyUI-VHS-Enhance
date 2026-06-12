@@ -87,7 +87,17 @@ function openBrowser(startPath, onPick) {
 function browseInto(node) {
   const vw = node.widgets?.find((x) => x.name === "video");
   openBrowser(vw && vw.value ? dirname(String(vw.value)) : "/", (picked) => {
-    if (vw) { vw.value = picked; try { vw.callback?.(picked); } catch (e) {} }
+    if (vw) {
+      // VHS usa un widget combo (options.values) para el path: al fijar una ruta por
+      // código hay que AÑADIRLA a options.values ANTES de value+callback, igual que
+      // hace VHS internamente (drag-drop). Si no, el callback no la valida y no
+      // previsualiza.
+      if (vw.options && Array.isArray(vw.options.values) && !vw.options.values.includes(picked)) {
+        vw.options.values.push(picked);
+      }
+      vw.value = picked;
+      try { vw.callback?.(picked); } catch (e) {}
+    }
     node.setDirtyCanvas(true, true);
   });
 }
