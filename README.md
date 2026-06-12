@@ -1,3 +1,14 @@
+# ComfyUI-VHS-Enhance
+
+> Fork de **[ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite)** para [oveCom](https://github.com/) que añade un **navegador de ficheros de servidor** a los nodos de carga de vídeo por ruta.
+
+## Añadido en este fork: navegador de vídeo
+Los nodos **`Load Video (Path)`** (`VHS_LoadVideoPath`) y **`Load Video FFmpeg (Path)`** (`VHS_LoadVideoFFmpegPath`) muestran ahora un botón **`📁 Browse…`** que abre un modal para **navegar las carpetas del servidor** (incl. rutas absolutas como `/mnt/s3files/<proyecto>`), listar los **vídeos** y elegir uno (rellena el widget `video`). Reutiliza la ruta `/vhs/getpath` de VHS (`is_safe_path` permite rutas absolutas salvo `VHS_STRICT_PATHS`). Implementado en `web/js/vhs_enhance_browser.js`; el resto de VideoHelperSuite queda intacto.
+
+> Nota: reemplaza a `ComfyUI-VideoHelperSuite` (mismos nombres de nodo); no instalar ambos a la vez.
+
+---
+
 # ComfyUI-VideoHelperSuite
 Nodes related to video workflows
 
