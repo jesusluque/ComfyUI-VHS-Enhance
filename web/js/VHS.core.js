@@ -1865,7 +1865,16 @@ app.registerExtension({
                     nodeData.description = el.querySelector('#VHS_shortdesc')?.innerHTML || el.children[1]?.firstChild?.innerHTML
                 }
                 chainCallback(nodeType.prototype, "onNodeCreated", function () {
-                    helpDOM.addHelp(this, nodeType, description)
+                    // helpDOM.addHelp solo queda definido si el frontend expone las
+                    // APIs legacy que este fichero usa (/scripts/ui.js y similares).
+                    // En ComfyUI 0.34 ya no existen, la asignación de la línea ~324 no
+                    // llega a ejecutarse y esta llamada lanzaba un TypeError DENTRO de
+                    // onNodeCreated, que aborta la carga ENTERA del workflow:
+                    // "Loading aborted due to error reloading workflow data".
+                    // Sin la ayuda contextual los nodos funcionan igual.
+                    if (typeof helpDOM.addHelp === "function") {
+                        helpDOM.addHelp(this, nodeType, description)
+                    }
                     this.setSize(this.computeSize())
                 })
             }
