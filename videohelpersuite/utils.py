@@ -234,8 +234,13 @@ def get_audio(file, start_time=0, duration=0):
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
     except subprocess.CalledProcessError as e:
-        raise Exception(f"VHS failed to extract audio from {file}:\n" \
-                + e.stderr.decode(*ENCODE_ARGS))
+        stderr = e.stderr.decode(*ENCODE_ARGS)
+        if "does not contain any stream" in stderr:
+            # The video has no audio track (e.g. a ProRes render with only video
+            # and timecode). Return silence of the right length instead of failing.
+            logger.warning(f"No audio track in {file}; using silence")
+            return silent_audio(file, stderr, start_time, duration)
+        raise Exception(f"VHS failed to extract audio from {file}:\n" + stderr)
     if match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now
@@ -247,24 +252,40 @@ def get_audio(file, start_time=0, duration=0):
     audio = audio.reshape((-1,ac)).transpose(0,1).unsqueeze(0)
     return {'waveform': audio, 'sample_rate': ar}
 
+def silent_audio(file, stderr="", start_time=0, duration=0, sample_rate=44100):
+    if duration <= 0:
+        match = re.search('Duration: (\\d+):(\\d+):(\\d+(?:\\.\\d+)?)', stderr)
+        if match:
+            h, m, sec = match.groups()
+            duration = max(int(h)*3600 + int(m)*60 + float(sec) - start_time, 0)
+    samples = int(round(duration * sample_rate))
+    return {'waveform': torch.zeros((1, 2, samples)), 'sample_rate': sample_rate}
+
 class LazyAudioMap(Mapping):
+    # ComfyUI (PromptModelTracker) walks every Mapping output -- including cached
+    # ones -- while building the execution graph, outside the per-node error
+    # handling. An exception raised here therefore kills the prompt worker thread
+    # and leaves the whole queue stuck, so loading never raises: failures are
+    # logged and replaced with silence.
     def __init__(self, file, start_time, duration):
         self.file = file
         self.start_time=start_time
         self.duration=duration
         self._dict=None
+    def _load(self):
+        if self._dict is None:
+            try:
+                self._dict = get_audio(self.file, self.start_time, self.duration)
+            except Exception as e:
+                logger.error(f"{e}\nUsing silence instead.")
+                self._dict = silent_audio(self.file, str(e), self.start_time, self.duration)
+        return self._dict
     def __getitem__(self, key):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return self._dict[key]
+        return self._load()[key]
     def __iter__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return iter(self._dict)
+        return iter(self._load())
     def __len__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return len(self._dict)
+        return len(self._load())
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
     return LazyAudioMap(file, start_time, duration)
 
